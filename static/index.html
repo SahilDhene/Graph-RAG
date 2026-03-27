@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>GraphRAG</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans@5/300.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans@5/400.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans@5/500.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans@5/600.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/geist-mono@5/400.css"/>
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<style>
+/* ─── TOKENS ─────────────────────────────────────────────────────────────── */
+:root {
+  --radius-sm: 6px;
+  --radius:    8px;
+  --radius-lg: 12px;
+}
+[data-theme="dark"] {
+  --bg:       #0c0c0e;
+  --bg1:      #111113;
+  --bg2:      #17171a;
+  --bg3:      #1e1e22;
+  --bg4:      #26262b;
+  --line:     rgba(255,255,255,.055);
+  --line2:    rgba(255,255,255,.09);
+  --text:     #ededf0;
+  --text2:    #8b8b96;
+  --text3:    #4c4c56;
+  --text4:    #2e2e36;
+  --accent:   #ededf0;
+  --invert:   #0c0c0e;
+  --scroll:   #25252a;
+  --shadow:   0 0 0 1px rgba(255,255,255,.055), 0 4px 20px rgba(0,0,0,.5);
+  --shadow-lg:0 0 0 1px rgba(255,255,255,.055), 0 12px 40px rgba(0,0,0,.7);
+  --glow:     0 0 0 2.5px rgba(237,237,240,.08);
+}
+[data-theme="light"] {
+  --bg:       #f5f5f7;
+  --bg1:      #ffffff;
+  --bg2:      #f0f0f3;
+  --bg3:      #e8e8ec;
+  --bg4:      #dcdce2;
+  --line:     rgba(0,0,0,.07);
+  --line2:    rgba(0,0,0,.12);
+  --text:     #111116;
+  --text2:    #5c5c68;
+  --text3:    #9898a4;
+  --text4:    #c4c4cc;
+  --accent:   #111116;
+  --invert:   #f5f5f7;
+  --scroll:   #ccccD4;
+  --shadow:   0 0 0 1px rgba(0,0,0,.07), 0 4px 20px rgba(0,0,0,.06);
+  --shadow-lg:0 0 0 1px rgba(0,0,0,.07), 0 12px 40px rgba(0,0,0,.1);
+  --glow:     0 0 0 2.5px rgba(17,17,22,.07);
+}
+
+/* ─── RESET ──────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:'Geist Sans',system-ui,-apple-system,sans-serif;
+  background:var(--bg);color:var(--text);
+  font-size:13.5px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  transition:background .25s,color .25s;
+}
+button{cursor:pointer;font-family:inherit;font-size:13.5px;border:none;background:none;color:inherit}
+textarea,input{font-family:inherit;font-size:13.5px;color:inherit}
+svg{display:block;flex-shrink:0}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:2px}
+
+/* ─── SHELL ──────────────────────────────────────────────────────────────── */
+.shell{
+  display:grid;
+  grid-template-columns:248px 1fr;
+  grid-template-rows:52px 1fr;
+  height:100vh;
+}
+
+/* ─── TOPBAR ─────────────────────────────────────────────────────────────── */
+.topbar{
+  grid-column:1/-1;
+  display:flex;align-items:center;
+  padding:0 18px;gap:16px;
+  background:var(--bg1);
+  border-bottom:1px solid var(--line);
+  position:relative;z-index:20;
+}
+.wordmark{
+  display:flex;align-items:center;gap:8px;
+  font-size:13.5px;font-weight:600;letter-spacing:-.35px;
+  color:var(--text);flex-shrink:0;
+}
+.logo-wrap{
+  width:28px;height:28px;border-radius:var(--radius-sm);
+  background:var(--bg3);border:1px solid var(--line2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text2);
+}
+.topbar-divider{width:1px;height:18px;background:var(--line);flex-shrink:0}
+.stats{display:flex;align-items:center;gap:2px;flex:1}
+.stat{
+  display:flex;align-items:center;gap:5px;
+  padding:5px 10px;border-radius:var(--radius-sm);
+  transition:background .12s;
+}
+.stat:hover{background:var(--bg2)}
+.stat-val{
+  font-size:13px;font-weight:500;
+  font-family:'Geist Mono',monospace;
+  color:var(--text);letter-spacing:-.5px;
+}
+.stat-key{font-size:10.5px;color:var(--text3);letter-spacing:.1px}
+.topbar-end{display:flex;align-items:center;gap:6px;margin-left:auto}
+.btn-icon{
+  width:32px;height:32px;border-radius:var(--radius-sm);
+  background:transparent;border:1px solid var(--line);
+  color:var(--text3);
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.btn-icon:hover{background:var(--bg2);color:var(--text);border-color:var(--line2)}
+
+/* ─── SIDEBAR ─────────────────────────────────────────────────────────────── */
+.sidebar{
+  background:var(--bg1);
+  border-right:1px solid var(--line);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+
+/* upload */
+.upload-area{
+  margin:14px 12px 10px;
+  border:1px dashed var(--line2);border-radius:var(--radius);
+  padding:20px 16px;text-align:center;cursor:pointer;
+  transition:border-color .15s,background .15s;
+  background:transparent;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.upload-area:hover,.upload-area.over{
+  border-color:var(--text3);background:var(--bg2);
+}
+.upload-icon{
+  width:36px;height:36px;border-radius:var(--radius);
+  background:var(--bg2);border:1px solid var(--line2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text3);margin-bottom:2px;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.upload-area:hover .upload-icon{
+  background:var(--bg3);color:var(--text2);border-color:var(--line2);
+}
+.upload-title{font-size:12.5px;font-weight:500;color:var(--text2)}
+.upload-sub{font-size:11px;color:var(--text3)}
+#file-input{display:none}
+
+/* progress */
+.progress-wrap{
+  margin:0 12px 8px;display:none;
+  border-radius:var(--radius-sm);overflow:hidden;
+  background:var(--bg2);border:1px solid var(--line);
+}
+.progress-wrap.show{display:block}
+.progress-track{height:2px;background:var(--bg3)}
+.progress-bar{height:100%;width:0%;background:var(--accent);transition:width .3s}
+.progress-msg{font-size:11px;color:var(--text2);padding:7px 11px}
+
+/* section label */
+.section-label{
+  padding:12px 14px 6px;
+  font-size:10px;font-weight:600;letter-spacing:1.2px;
+  color:var(--text3);text-transform:uppercase;
+}
+
+/* doc list */
+.doc-list{flex:1;overflow-y:auto;padding:0 8px 10px}
+.doc-empty{
+  font-size:12px;color:var(--text3);
+  padding:20px 10px;text-align:center;line-height:1.8;
+}
+.doc-item{
+  display:flex;align-items:center;gap:9px;
+  padding:8px 8px;border-radius:var(--radius);
+  cursor:default;transition:background .12s;
+  position:relative;
+}
+.doc-item:hover{background:var(--bg2)}
+.doc-item:hover .doc-del{opacity:1}
+.doc-file-icon{
+  width:28px;height:28px;border-radius:var(--radius-sm);
+  background:var(--bg3);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text3);flex-shrink:0;
+}
+.doc-meta{flex:1;min-width:0}
+.doc-name{
+  font-size:12.5px;font-weight:500;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.doc-info{font-size:10.5px;color:var(--text3);margin-top:1px}
+.doc-del{
+  opacity:0;width:22px;height:22px;
+  border-radius:var(--radius-sm);
+  color:var(--text3);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  transition:opacity .12s,background .12s,color .12s;
+}
+.doc-del:hover{background:var(--bg3);color:var(--text)}
+
+/* ─── MAIN ───────────────────────────────────────────────────────────────── */
+.main{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+
+.thread{
+  flex:1;overflow-y:auto;
+  display:flex;flex-direction:column;
+}
+
+/* ─── WELCOME ─────────────────────────────────────────────────────────────── */
+.welcome{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:6px;padding:60px 40px;
+}
+.welcome-glyph{
+  width:52px;height:52px;border-radius:14px;
+  background:var(--bg2);border:1px solid var(--line2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text3);margin-bottom:10px;
+}
+.welcome-title{
+  font-size:24px;font-weight:600;letter-spacing:-.7px;
+  color:var(--text);line-height:1.2;
+}
+.welcome-desc{
+  font-size:13.5px;color:var(--text2);
+  max-width:360px;text-align:center;line-height:1.7;
+  margin-top:2px;
+}
+.chips{
+  display:flex;flex-wrap:wrap;gap:6px;
+  justify-content:center;margin-top:20px;max-width:480px;
+}
+.chip{
+  font-size:12px;font-weight:500;color:var(--text2);
+  padding:6px 14px;border-radius:20px;
+  border:1px solid var(--line2);background:var(--bg1);
+  cursor:pointer;transition:background .12s,color .12s,border-color .15s;
+  letter-spacing:-.1px;
+}
+.chip:hover{background:var(--bg3);color:var(--text);border-color:var(--line2)}
+
+/* ─── MESSAGES ───────────────────────────────────────────────────────────── */
+.msgs-list{
+  padding:28px 0 16px;
+  display:flex;flex-direction:column;gap:1px;
+}
+.turn{padding:0 28px}
+.turn+.turn{margin-top:20px}
+
+.turn-label{
+  display:flex;align-items:center;gap:7px;
+  margin-bottom:8px;
+}
+.avatar{
+  width:20px;height:20px;border-radius:5px;
+  background:var(--bg3);border:1px solid var(--line2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text3);flex-shrink:0;
+}
+.turn-name{
+  font-size:11px;font-weight:600;letter-spacing:.6px;
+  text-transform:uppercase;color:var(--text3);
+}
+.mode-tag{
+  font-size:9.5px;padding:1.5px 6px;border-radius:4px;
+  background:var(--bg3);color:var(--text3);
+  border:1px solid var(--line);
+  text-transform:uppercase;font-weight:500;letter-spacing:.4px;
+  margin-left:2px;
+}
+
+/* user message */
+.user-msg{
+  display:inline-block;max-width:70%;
+  font-size:13.5px;color:var(--text);line-height:1.65;
+  background:var(--bg2);border:1px solid var(--line);
+  padding:10px 14px;border-radius:3px 12px 12px 12px;
+}
+
+/* ai message */
+.ai-msg{
+  font-size:13.5px;color:var(--text);line-height:1.8;
+  background:var(--bg1);border:1px solid var(--line);
+  padding:14px 18px;border-radius:3px 12px 12px 12px;
+  position:relative;
+}
+.ai-msg.streaming{border-color:var(--line2)}
+
+/* typing cursor */
+.cur{
+  display:inline-block;width:1.5px;height:14px;
+  background:var(--text2);border-radius:1px;
+  vertical-align:middle;margin-left:1px;
+  animation:blink .85s ease-in-out infinite;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* status */
+.status-line{
+  display:flex;align-items:center;gap:8px;
+  font-size:11.5px;color:var(--text3);
+  font-family:'Geist Mono',monospace;
+}
+.spinner{
+  width:12px;height:12px;border-radius:50%;
+  border:1.5px solid var(--bg4);
+  border-top-color:var(--text3);
+  animation:spin .5s linear infinite;flex-shrink:0;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* entity tags */
+.entity-row{
+  display:none;flex-wrap:wrap;gap:4px;
+  margin-top:14px;padding-top:12px;
+  border-top:1px solid var(--line);
+}
+.entity-tag{
+  font-size:10.5px;padding:3px 9px;border-radius:4px;
+  background:var(--bg2);color:var(--text2);
+  border:1px solid var(--line);
+  font-family:'Geist Mono',monospace;
+  white-space:nowrap;max-width:220px;
+  overflow:hidden;text-overflow:ellipsis;
+}
+
+/* sources */
+.source-row{
+  display:none;flex-wrap:wrap;gap:4px;align-items:center;
+  margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--line);
+}
+.source-label{
+  font-size:9.5px;color:var(--text3);
+  letter-spacing:.8px;text-transform:uppercase;
+  width:100%;margin-bottom:2px;font-weight:500;
+}
+.source-pill{
+  font-size:10.5px;padding:3px 9px;border-radius:4px;
+  background:var(--bg2);color:var(--text3);
+  border:1px solid var(--line);
+  font-family:'Geist Mono',monospace;
+}
+
+/* graph card */
+.graph-wrap{
+  margin-top:14px;
+  border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;background:var(--bg);
+  display:none;
+}
+.graph-header{
+  padding:9px 14px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:7px;
+}
+.graph-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--text4);flex-shrink:0;
+}
+.graph-label{
+  font-size:9.5px;color:var(--text3);
+  font-family:'Geist Mono',monospace;
+  letter-spacing:.8px;text-transform:uppercase;font-weight:500;
+}
+.graph-canvas{width:100%;height:160px;display:block}
+
+/* ─── MARKDOWN ───────────────────────────────────────────────────────────── */
+.md{line-height:1.8}
+.md p{margin:0 0 10px}
+.md p:last-child{margin-bottom:0}
+.md ul,.md ol{padding-left:22px;margin:6px 0 10px}
+.md li{margin:4px 0;line-height:1.7}
+.md ul li{list-style-type:disc}
+.md ol li{list-style-type:decimal}
+.md h1,.md h2,.md h3,.md h4{
+  font-weight:600;color:var(--text);
+  margin:16px 0 7px;line-height:1.3;
+}
+.md h1{font-size:17px}.md h2{font-size:15.5px}
+.md h3{font-size:14px}.md h4{font-size:13px;color:var(--text2)}
+.md code{
+  font-family:'Geist Mono',monospace;font-size:12px;
+  background:var(--bg3);padding:1.5px 6px;
+  border-radius:4px;color:var(--text2);
+  border:1px solid var(--line);
+}
+.md pre{
+  background:var(--bg2);border:1px solid var(--line);
+  border-radius:var(--radius);padding:14px 16px;
+  margin:10px 0;overflow-x:auto;
+}
+.md pre code{background:none;padding:0;font-size:12px;border:none}
+.md strong{font-weight:600;color:var(--text)}
+.md em{color:var(--text2);font-style:italic}
+.md blockquote{
+  border-left:2px solid var(--line2);
+  padding-left:14px;color:var(--text2);margin:10px 0;
+}
+.md hr{border:none;border-top:1px solid var(--line);margin:14px 0}
+.md table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12.5px}
+.md th,.md td{padding:7px 12px;border:1px solid var(--line);text-align:left}
+.md th{background:var(--bg2);font-weight:600}
+.md a{color:var(--text2);text-decoration:underline;text-underline-offset:2px}
+
+/* ─── COMPOSER ───────────────────────────────────────────────────────────── */
+.composer-outer{
+  padding:10px 20px 16px;
+  background:var(--bg1);
+  border-top:1px solid var(--line);
+}
+.composer-card{
+  background:var(--bg2);
+  border:1px solid var(--line2);
+  border-radius:var(--radius-lg);
+  transition:box-shadow .15s,border-color .15s;
+  overflow:hidden;
+}
+.composer-card:focus-within{
+  border-color:var(--line2);
+  box-shadow:var(--glow);
+}
+.composer-input-row{
+  display:flex;align-items:flex-end;gap:10px;
+  padding:13px 14px 11px;
+}
+.composer-ta{
+  flex:1;background:transparent;border:none;outline:none;resize:none;
+  font-size:13.5px;line-height:1.55;color:var(--text);
+  min-height:22px;max-height:110px;overflow-y:auto;
+}
+.composer-ta::placeholder{color:var(--text3)}
+.composer-toolbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px 10px;
+  border-top:1px solid var(--line);
+}
+.mode-switch{display:flex;align-items:center;gap:4px}
+.mode-label{font-size:10.5px;color:var(--text3);margin-right:4px}
+.mode-btn{
+  font-size:10.5px;font-weight:500;
+  padding:3px 11px;border-radius:5px;
+  color:var(--text3);border:1px solid transparent;
+  background:transparent;
+  transition:all .12s;letter-spacing:-.1px;
+}
+.mode-btn:hover{color:var(--text2);background:var(--bg3)}
+.mode-btn.active{
+  background:var(--accent);color:var(--invert);
+}
+.send-btn{
+  width:32px;height:32px;border-radius:var(--radius);
+  background:var(--accent);color:var(--invert);
+  display:flex;align-items:center;justify-content:center;
+  transition:opacity .15s,transform .1s;flex-shrink:0;
+}
+.send-btn:disabled{opacity:.2;cursor:not-allowed}
+.send-btn:not(:disabled):hover{opacity:.85}
+.send-btn:not(:disabled):active{transform:scale(.95)}
+.kbd{
+  font-size:10.5px;color:var(--text3);
+  font-family:'Geist Mono',monospace;
+}
+
+/* ─── TOASTS ─────────────────────────────────────────────────────────────── */
+#toasts{
+  position:fixed;bottom:20px;right:20px;
+  display:flex;flex-direction:column;gap:6px;z-index:999;
+  pointer-events:none;
+}
+.toast{
+  padding:9px 15px;border-radius:var(--radius);
+  font-size:12.5px;font-weight:500;
+  box-shadow:var(--shadow);
+  background:var(--bg2);color:var(--text);
+  border:1px solid var(--line2);
+  display:flex;align-items:center;gap:8px;
+  animation:slide-in .18s ease;max-width:320px;
+  pointer-events:all;
+}
+.toast.err{border-color:rgba(200,60,60,.4);color:#e05555}
+.toast.ok{color:var(--text2)}
+@keyframes slide-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="wordmark">
+      <div class="logo-wrap">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1L12.5 4.25V10.75L7 14L1.5 10.75V4.25L7 1Z"
+                stroke="currentColor" stroke-width="1.15" stroke-linejoin="round"/>
+          <circle cx="7" cy="7" r="1.6" fill="currentColor"/>
+        </svg>
+      </div>
+      GraphRAG
+    </div>
+
+    <div class="topbar-divider"></div>
+
+    <div class="stats">
+      <div class="stat"><span class="stat-val" id="s-docs">0</span><span class="stat-key">docs</span></div>
+      <div class="stat"><span class="stat-val" id="s-chunks">0</span><span class="stat-key">chunks</span></div>
+      <div class="stat"><span class="stat-val" id="s-ents">0</span><span class="stat-key">entities</span></div>
+      <div class="stat"><span class="stat-val" id="s-rels">0</span><span class="stat-key">edges</span></div>
+    </div>
+
+    <div class="topbar-end">
+      <button class="btn-icon" id="theme-btn" title="Toggle theme">
+        <svg id="i-sun" width="15" height="15" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="2.8" stroke="currentColor" stroke-width="1.35"/>
+          <line x1="8" y1="1"    x2="8" y2="2.8"  stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+          <line x1="8" y1="13.2" x2="8" y2="15"   stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+          <line x1="1"    y1="8" x2="2.8"  y2="8"  stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+          <line x1="13.2" y1="8" x2="15"   y2="8"  stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+          <line x1="3.05" y1="3.05" x2="4.3"  y2="4.3"  stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+          <line x1="11.7" y1="11.7" x2="12.95" y2="12.95" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+          <line x1="12.95" y1="3.05" x2="11.7" y2="4.3"  stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+          <line x1="4.3"  y1="11.7" x2="3.05" y2="12.95" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+        </svg>
+        <svg id="i-moon" width="15" height="15" viewBox="0 0 16 16" fill="none" style="display:none">
+          <path d="M13.8 10.6A6.4 6.4 0 015.4 2.2a6.4 6.4 0 100 11.6 6.4 6.4 0 008.4-3.2z"
+                stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="upload-area" id="drop-zone"
+         onclick="document.getElementById('file-input').click()">
+      <div class="upload-icon">
+        <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+          <path d="M9 12V3M9 3L5.5 6.5M9 3L12.5 6.5"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 13.5V14a2 2 0 002 2h10a2 2 0 002-2v-.5"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="upload-title">Add documents</div>
+      <div class="upload-sub">PDF or DOCX · drag &amp; drop</div>
+    </div>
+    <input type="file" id="file-input" accept=".pdf,.docx,.doc" multiple/>
+
+    <div class="progress-wrap" id="prog-wrap">
+      <div class="progress-track"><div class="progress-bar" id="prog-bar"></div></div>
+      <div class="progress-msg" id="prog-msg">Processing…</div>
+    </div>
+
+    <div class="section-label">Library</div>
+    <div class="doc-list" id="doc-list">
+      <div class="doc-empty">No documents yet</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="thread" id="thread">
+
+      <div class="welcome" id="welcome">
+        <div class="welcome-glyph">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L21 7V17L12 22L3 17V7L12 2Z"
+                  stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="2.2" fill="currentColor"/>
+            <line x1="12" y1="9.8"  x2="12" y2="4"  stroke="currentColor" stroke-width="1" stroke-opacity=".35"/>
+            <line x1="12" y1="14.2" x2="12" y2="20" stroke="currentColor" stroke-width="1" stroke-opacity=".35"/>
+            <line x1="10.1" y1="11" x2="5"  y2="8.1" stroke="currentColor" stroke-width="1" stroke-opacity=".35"/>
+            <line x1="13.9" y1="13" x2="19" y2="15.9" stroke="currentColor" stroke-width="1" stroke-opacity=".35"/>
+            <line x1="10.1" y1="13" x2="5"  y2="15.9" stroke="currentColor" stroke-width="1" stroke-opacity=".35"/>
+            <line x1="13.9" y1="11" x2="19" y2="8.1"  stroke="currentColor" stroke-width="1" stroke-opacity=".35"/>
+          </svg>
+        </div>
+        <div class="welcome-title">Ask your documents</div>
+        <div class="welcome-desc">
+          Upload PDFs or DOCX files. GraphRAG builds a knowledge graph and retrieves entity-aware, grounded answers.
+        </div>
+        <div class="chips">
+          <span class="chip" data-q="What are the main topics?" data-m="global">Main topics</span>
+          <span class="chip" data-q="Who are the key people mentioned?">Key people</span>
+          <span class="chip" data-q="What relationships exist between key entities?">Relationships</span>
+          <span class="chip" data-q="Summarize the core findings." data-m="global">Core findings</span>
+          <span class="chip" data-q="What are the key events or dates?">Key events</span>
+        </div>
+      </div>
+
+      <div class="msgs-list" id="msgs"></div>
+    </div>
+
+    <div class="composer-outer">
+      <div class="composer-card">
+        <div class="composer-input-row">
+          <textarea class="composer-ta" id="ta"
+            placeholder="Ask anything about your documents…"
+            rows="1"></textarea>
+          <button class="send-btn" id="send-btn" disabled title="Send (↵)">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M6.5 11V2M6.5 2L3 5.5M6.5 2L10 5.5"
+                    stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="composer-toolbar">
+          <div class="mode-switch">
+            <span class="mode-label">Mode</span>
+            <button class="mode-btn active" data-m="local"  id="m-local">Local</button>
+            <button class="mode-btn"        data-m="global" id="m-global">Global</button>
+          </div>
+          <span class="kbd">↵ send &nbsp;·&nbsp; ⇧↵ newline</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+</div>
+<div id="toasts"></div>
+
+<script>
+/* ─── THEME ──────────────────────────────────────────────────────────────── */
+const root = document.documentElement;
+const themeBtn = document.getElementById('theme-btn');
+let theme = localStorage.getItem('gr-theme') || 'dark';
+applyTheme(theme);
+
+themeBtn.onclick = () => {
+  theme = theme === 'dark' ? 'light' : 'dark';
+  applyTheme(theme);
+  localStorage.setItem('gr-theme', theme);
+  document.querySelectorAll('.graph-canvas').forEach(c => { if (c._e) drawGraph(c, c._e); });
+};
+
+function applyTheme(t) {
+  root.setAttribute('data-theme', t);
+  document.getElementById('i-sun').style.display  = t === 'dark'  ? 'block' : 'none';
+  document.getElementById('i-moon').style.display = t === 'light' ? 'block' : 'none';
+}
+
+/* ─── MODE ───────────────────────────────────────────────────────────────── */
+let mode = 'local';
+document.querySelectorAll('.mode-btn').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); mode = b.dataset.m;
+  };
+});
+
+/* ─── TEXTAREA ───────────────────────────────────────────────────────────── */
+const ta      = document.getElementById('ta');
+const sendBtn = document.getElementById('send-btn');
+
+ta.addEventListener('input', () => {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 110) + 'px';
+  sendBtn.disabled = !ta.value.trim();
+});
+ta.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doQuery(); }
+});
+sendBtn.onclick = doQuery;
+
+/* ─── CHIPS ──────────────────────────────────────────────────────────────── */
+document.querySelectorAll('.chip').forEach(c => {
+  c.onclick = () => {
+    ta.value = c.dataset.q;
+    ta.dispatchEvent(new Event('input'));
+    if (c.dataset.m) document.querySelector(`[data-m="${c.dataset.m}"]`).click();
+    doQuery();
+  };
+});
+
+/* ─── UPLOAD ─────────────────────────────────────────────────────────────── */
+const dz = document.getElementById('drop-zone');
+const fi = document.getElementById('file-input');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', ()  => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); uploadFiles([...e.dataTransfer.files]); });
+fi.onchange = () => { uploadFiles([...fi.files]); fi.value = ''; };
+
+async function uploadFiles(files) {
+  const ok = files.filter(f => /\.(pdf|docx|doc)$/i.test(f.name));
+  if (!ok.length) { toast('No supported files.', 'err'); return; }
+  for (const f of ok) await uploadOne(f);
+  await Promise.all([loadDocs(), loadStats()]);
+}
+
+async function uploadOne(file) {
+  const wrap = document.getElementById('prog-wrap');
+  const bar  = document.getElementById('prog-bar');
+  const msg  = document.getElementById('prog-msg');
+  wrap.classList.add('show');
+  bar.style.width = '8%';
+  msg.textContent = `Processing ${file.name}…`;
+
+  let p = 8;
+  const t = setInterval(() => { p = Math.min(p + Math.random() * 9, 82); bar.style.width = p + '%'; }, 350);
+
+  try {
+    const fd = new FormData(); fd.append('file', file);
+    const res = await fetch('/api/ingest', { method: 'POST', body: fd });
+    clearInterval(t);
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({ detail: res.statusText }));
+      toast(`${file.name}: ${e.detail}`, 'err');
+      bar.style.width = '0'; wrap.classList.remove('show');
+    } else {
+      const d = await res.json();
+      bar.style.width = '100%';
+      msg.textContent = `${file.name} — ${d.chunks} chunks`;
+      toast(`${file.name} indexed`, 'ok');
+      setTimeout(() => { wrap.classList.remove('show'); bar.style.width = '0'; }, 2000);
+    }
+  } catch (e) {
+    clearInterval(t); toast(e.message, 'err');
+    wrap.classList.remove('show'); bar.style.width = '0';
+  }
+}
+
+/* ─── DOCUMENTS ──────────────────────────────────────────────────────────── */
+async function loadDocs() {
+  try { const r = await fetch('/api/documents'); renderDocs((await r.json()).documents || []); } catch {}
+}
+
+function renderDocs(docs) {
+  const el = document.getElementById('doc-list');
+  if (!docs.length) { el.innerHTML = '<div class="doc-empty">No documents yet</div>'; return; }
+  el.innerHTML = docs.map(d => `
+    <div class="doc-item">
+      <div class="doc-file-icon">
+        <svg width="12" height="12" viewBox="0 0 13 16" fill="none">
+          <path d="M2 1h7l3 3v11H2V1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          <path d="M9 1v3h3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          <line x1="4" y1="8"  x2="9" y2="8"  stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+          <line x1="4" y1="11" x2="9" y2="11" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="doc-meta">
+        <div class="doc-name" title="${esc(d.source)}">${esc(base(d.source))}</div>
+        <div class="doc-info">${d.chunks || 0} chunks</div>
+      </div>
+      <button class="doc-del" onclick="delDoc('${esc(d.id)}')" title="Remove">
+        <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+          <path d="M1.5 1.5l6 6M7.5 1.5l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>`).join('');
+}
+
+async function delDoc(id) {
+  await fetch(`/api/documents/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  loadDocs(); loadStats(); toast('Document removed', 'ok');
+}
+
+/* ─── STATS ──────────────────────────────────────────────────────────────── */
+async function loadStats() {
+  try {
+    const d = await (await fetch('/api/stats')).json();
+    document.getElementById('s-docs').textContent   = fmt(d.documents);
+    document.getElementById('s-chunks').textContent = fmt(d.chunks);
+    document.getElementById('s-ents').textContent   = fmt(d.entities);
+    document.getElementById('s-rels').textContent   = fmt(d.relationships);
+  } catch {}
+}
+function fmt(n) { return n >= 1000 ? (n / 1000).toFixed(1) + 'k' : (n ?? 0); }
+
+/* ─── QUERY ──────────────────────────────────────────────────────────────── */
+let busy = false;
+
+async function doQuery() {
+  const q = ta.value.trim();
+  if (!q || busy) return;
+  busy = true; sendBtn.disabled = true;
+  document.getElementById('welcome').style.display = 'none';
+  ta.value = ''; ta.style.height = 'auto';
+
+  appendTurn('user', q, mode);
+
+  const { aiMsg, streamDiv, entityRow, sourceRow, graphWrap, graphCanvas } = appendAiTurn(mode);
+  aiMsg.classList.add('streaming');
+
+  const statusEl = mkEl('div', 'status-line', `<div class="spinner"></div><span id="_st">Thinking…</span>`);
+  aiMsg.prepend(statusEl);
+  const stTxt = statusEl.querySelector('#_st');
+
+  let answer = '', cursor = null, entities = [];
+  const es = new EventSource(`/api/query?q=${encodeURIComponent(q)}&mode=${mode}`);
+
+  es.addEventListener('status',   e => { stTxt.textContent = JSON.parse(e.data).message; });
+
+  es.addEventListener('entities', e => {
+    entities = JSON.parse(e.data).summaries || [];
+    if (entities.length) {
+      entityRow.innerHTML = entities.slice(0, 14)
+        .map(s => `<span class="entity-tag" title="${esc(s)}">${esc(trunc(s, 38))}</span>`).join('');
+      entityRow.style.display = 'flex';
+    }
+  });
+
+  es.addEventListener('token', e => {
+    if (statusEl.parentNode) statusEl.remove();
+    if (!cursor) { cursor = mkEl('span', 'cur'); streamDiv.appendChild(cursor); }
+    const txt = JSON.parse(e.data).text;
+    answer += txt;
+    cursor.insertAdjacentText('beforebegin', txt);
+    scrollEnd();
+  });
+
+  es.addEventListener('done', e => {
+    if (cursor) cursor.remove();
+    if (statusEl.parentNode) statusEl.remove();
+    aiMsg.classList.remove('streaming');
+
+    streamDiv.className = 'md';
+    streamDiv.innerHTML = marked.parse(answer);
+
+    const d = JSON.parse(e.data);
+    if (d.sources?.length) {
+      sourceRow.innerHTML = '<div class="source-label">Sources</div>' +
+        d.sources.map(s => `<span class="source-pill">${esc(base(s))}</span>`).join('');
+      sourceRow.style.display = 'flex';
+    }
+    if (entities.length) { drawGraph(graphCanvas, entities); graphWrap.style.display = 'block'; }
+    es.close(); busy = false; sendBtn.disabled = !ta.value.trim(); scrollEnd();
+  });
+
+  es.addEventListener('error', e => {
+    let m = 'Stream error'; try { m = JSON.parse(e.data).message; } catch {}
+    if (statusEl.parentNode) statusEl.remove();
+    if (cursor) cursor.remove();
+    aiMsg.classList.remove('streaming');
+    aiMsg.innerHTML += `<span style="color:#e05555;font-size:12px">${esc(m)}</span>`;
+    es.close(); busy = false; sendBtn.disabled = !ta.value.trim();
+  });
+
+  es.onerror = () => {
+    if (!busy) return;
+    if (statusEl.parentNode) statusEl.remove();
+    if (cursor) cursor.remove();
+    aiMsg.classList.remove('streaming');
+    es.close(); busy = false; sendBtn.disabled = !ta.value.trim();
+  };
+}
+
+/* ─── DOM HELPERS ────────────────────────────────────────────────────────── */
+function appendTurn(role, text, m) {
+  const wrap = document.getElementById('msgs');
+  const d = document.createElement('div');
+  d.className = 'turn';
+  const name = role === 'user' ? 'You' : 'GraphRAG';
+
+  /* avatar SVG */
+  const avatarSvg = role === 'user'
+    ? `<svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+         <circle cx="6" cy="4" r="2.2" stroke="currentColor" stroke-width="1.2"/>
+         <path d="M1.5 11c0-2.485 2.015-4.5 4.5-4.5s4.5 2.015 4.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+       </svg>`
+    : `<svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+         <path d="M6 1L10.5 3.75V8.25L6 11L1.5 8.25V3.75L6 1Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+         <circle cx="6" cy="6" r="1.3" fill="currentColor"/>
+       </svg>`;
+
+  d.innerHTML = `
+    <div class="turn-label">
+      <div class="avatar">${avatarSvg}</div>
+      <span class="turn-name">${name}</span>
+      <span class="mode-tag">${m}</span>
+    </div>
+    <div class="${role === 'user' ? 'user-msg' : 'ai-msg'}">${esc(text)}</div>`;
+  wrap.appendChild(d); scrollEnd();
+}
+
+function appendAiTurn(m) {
+  const wrap = document.getElementById('msgs');
+  const d = document.createElement('div');
+  d.className = 'turn';
+
+  const streamDiv  = mkEl('div', '');
+  const entityRow  = mkEl('div', 'entity-row');
+  const sourceRow  = mkEl('div', 'source-row');
+  const graphCanvas = document.createElement('canvas');
+  graphCanvas.className = 'graph-canvas';
+  const graphWrap = mkEl('div', 'graph-wrap');
+  graphWrap.innerHTML =
+    `<div class="graph-header">
+       <div class="graph-dot"></div>
+       <span class="graph-label">Entity graph · retrieved context</span>
+     </div>`;
+  graphWrap.appendChild(graphCanvas);
+
+  const aiMsg = mkEl('div', 'ai-msg');
+  aiMsg.appendChild(streamDiv);
+  aiMsg.appendChild(entityRow);
+  aiMsg.appendChild(sourceRow);
+  aiMsg.appendChild(graphWrap);
+
+  d.innerHTML = `
+    <div class="turn-label">
+      <div class="avatar">
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+          <path d="M6 1L10.5 3.75V8.25L6 11L1.5 8.25V3.75L6 1Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+          <circle cx="6" cy="6" r="1.3" fill="currentColor"/>
+        </svg>
+      </div>
+      <span class="turn-name">GraphRAG</span>
+      <span class="mode-tag">${m}</span>
+    </div>`;
+  d.appendChild(aiMsg);
+  wrap.appendChild(d); scrollEnd();
+  return { aiMsg, streamDiv, entityRow, sourceRow, graphWrap, graphCanvas };
+}
+
+function mkEl(tag, cls, html = '') {
+  const e = document.createElement(tag);
+  e.className = cls; e.innerHTML = html; return e;
+}
+
+function scrollEnd() {
+  const t = document.getElementById('thread');
+  t.scrollTop = t.scrollHeight;
+}
+
+/* ─── GRAPH ──────────────────────────────────────────────────────────────── */
+function drawGraph(canvas, summaries) {
+  const W = canvas.parentElement.offsetWidth || 400, H = 160;
+  canvas.width = W; canvas.height = H;
+  canvas._e = summaries;
+
+  const ctx  = canvas.getContext('2d');
+  const dark = root.getAttribute('data-theme') === 'dark';
+  const names = summaries.slice(0, 16).map(s => s.split(':')[0].trim());
+  const n = names.length; if (!n) return;
+
+  const nodes = names.map((name, i) => ({
+    x: W / 2 + W * .36 * Math.cos((i / n) * Math.PI * 2 - Math.PI / 2) + (Math.random() - .5) * 18,
+    y: H / 2 + H * .33 * Math.sin((i / n) * Math.PI * 2 - Math.PI / 2) + (Math.random() - .5) * 10,
+    name, r: i === 0 ? 5 : 3.5,
+  }));
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = dark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.06)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < n; i++) {
+    for (const j of [(i + 1) % n, (i + 3) % n]) {
+      ctx.beginPath(); ctx.moveTo(nodes[i].x, nodes[i].y);
+      ctx.lineTo(nodes[j].x, nodes[j].y); ctx.stroke();
+    }
+  }
+  nodes.forEach((nd, i) => {
+    ctx.beginPath(); ctx.arc(nd.x, nd.y, nd.r, 0, Math.PI * 2);
+    ctx.fillStyle = i === 0 ? (dark ? '#ededf0' : '#111116') : (dark ? '#36363d' : '#c4c4cc');
+    ctx.fill();
+    ctx.font = `${i === 0 ? 500 : 400} 9px 'Geist Sans',system-ui`;
+    ctx.fillStyle = dark ? 'rgba(237,237,240,.45)' : 'rgba(17,17,22,.38)';
+    ctx.textAlign = 'center';
+    ctx.fillText(nd.name.length > 14 ? nd.name.slice(0, 13) + '…' : nd.name, nd.x, nd.y + nd.r + 10);
+  });
+}
+
+/* ─── UTILS ──────────────────────────────────────────────────────────────── */
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function base(s)    { return String(s).split(/[/\\]/).pop() || s; }
+function trunc(s,n) { return s.length > n ? s.slice(0,n)+'…' : s; }
+
+function toast(msg, type = '') {
+  const w = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`; t.textContent = msg;
+  w.appendChild(t); setTimeout(() => t.remove(), 3500);
+}
+
+/* ─── INIT ───────────────────────────────────────────────────────────────── */
+loadDocs(); loadStats();
+setInterval(loadStats, 30000);
+ta.focus();
+</script>
+</body>
+</html>
